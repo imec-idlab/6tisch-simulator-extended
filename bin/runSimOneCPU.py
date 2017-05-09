@@ -9,6 +9,7 @@ settings. Use '--help' for a list of them.
 \author Kazushi Muraoka <k-muraoka@eecs.berkeley.edu>
 \author Nicola Accettura <nicola.accettura@eecs.berkeley.edu>
 \author Xavier Vilajosana <xvilajosana@eecs.berkeley.edu>
+Added changes for 6tisch-sim-extended: Esteban Municio <esteban.municio@uantwerpen.be>
 '''
 
 #============================ adjust path =====================================
@@ -29,7 +30,7 @@ log = logging.getLogger('BatchSim')
 log.setLevel(logging.ERROR)
 log.addHandler(NullHandler())
 
-#============================ imports =========================================
+#============================ imports =========================================#
 
 import time
 import itertools
@@ -40,7 +41,7 @@ import threading
 from SimEngine     import SimEngine,   \
                           SimSettings, \
                           SimStats
-#from SimGui        import SimGui   # removed gui
+from SimGui        import SimGui
 
 #============================ defines =========================================
 
@@ -71,14 +72,14 @@ def parseCliOptions():
     parser.add_argument( '--numCyclesPerRun',
         dest       = 'numCyclesPerRun',
         type       = int,
-        default    = 100,
-        help       = '[simulation] Duration of a run, in slotframes.',
+        default    = 2000,	#max value, actually is dynamic. it is expected to finish earlier
+        help       = '[sim] Duration of a run, in slotframes.',
     )
     parser.add_argument('--simDataDir',
         dest       = 'simDataDir',
         type       = str,
         default    = 'simData',
-        help       = '[simulation] Simulation log directory.',
+        help       = '[sim] Simulation log directory.',
     )
     # topology
     parser.add_argument( '--numMotes',
@@ -91,8 +92,25 @@ def parseCliOptions():
     parser.add_argument( '--squareSide',
         dest       = 'squareSide',
         type       = float,
-        default    = 2.000,
+        default    = 5.500,	
         help       = '[topology] Side of the deployment area (km).',
+    )
+    #for specific number of hops set squareSide: 
+	#2.4GHz -> 0.5~0.55Km per hop aprox 
+	#868MHz -> 1.3~1.35Km per hop aprox 
+    parser.add_argument('--topology',
+        dest       = 'topology',
+        nargs      = '+',
+        type       = str,
+        default    = 'mesh',
+        help       = '[topology] Choose the topology of the network. Mesh, Star or Structured mesh',
+    )
+    parser.add_argument('--maxNumHops',
+        dest       = 'maxNumHops',
+        nargs      = '+',
+        type       = str,
+        default    = '4',
+        help       = '[topology] Choose the max number of hops of the structured mesh topology.',
     )
     # app
     parser.add_argument( '--pkPeriod',
@@ -119,8 +137,14 @@ def parseCliOptions():
         dest       = 'numPacketsBurst',
         nargs      = '+',
         type       = int,
-        default    = 5,
+        default    = 10,
         help       = '[app] Number of packets in a burst, per node.',
+    )
+    parser.add_argument('--trafficType',
+        dest       = 'trafficType',
+        type       = str,
+        default    = 'paretovariable',
+        help       = '[app] Type of traffic. constant or pareto variable.',
     )
     # rpl
     parser.add_argument( '--dioPeriod',
@@ -130,6 +154,13 @@ def parseCliOptions():
         help       = '[rpl] DIO period (s).',
     )
     # otf
+    parser.add_argument('--otfenabled',
+        dest       = 'otfEnabled',
+        nargs      = '+',
+        type       = bool,
+        default    = True,
+        help       = '[otf] Chose between otf on/off.',
+    )
     parser.add_argument( '--otfThreshold',
         dest       = 'otfThreshold',
         nargs      = '+',
@@ -183,11 +214,39 @@ def parseCliOptions():
         default    = 101,
         help       = '[tsch] Number of timeslots in a slotframe.',
     )
+    parser.add_argument('--numSHAREDCells',
+        dest       = 'numSHAREDCells',
+        nargs      = '+',
+        type       = int,
+        default    = 5,
+        help       = '[tsch] number of shared cells (per channel).',
+    )
+    parser.add_argument('--numDeBraSCells',
+        dest       = 'numDeBraSCells',
+        nargs      = '+',
+        type       = int,
+        default    = 0,
+        help       = '[tsch] number of debras cells (per channel).',
+    )
+    parser.add_argument('--numRadios',	#number of radios (i.e. number of channels that can be used at the same time)
+        dest       = 'numRadios',
+        nargs      = '+',
+        type       = int,
+        default    = 1,
+        help       = '[tsch] Multichannel capabilities: Choose the number of radios per node to allow n simultaneous TX/RX.',
+    )
+    parser.add_argument('--scheduler',
+        dest       = 'scheduler',
+        nargs      = '+',
+        type       = str,
+        default    = 'sf0',
+        help       = '[tsch] Choose the schedule model.',
+    )
     # phy
     parser.add_argument( '--numChans',
         dest       = 'numChans',
         type       = int,
-        default    = 4,
+        default    = 16,
         help       = '[phy] Number of frequency channels.',
     )
     parser.add_argument( '--minRssi',
@@ -201,44 +260,15 @@ def parseCliOptions():
         nargs      = '+',
         type       = int,
         default    = 0,
-        help       = '[phy] Disable interference model.',   # wont work without intereference
+        help       = '[phy] Disable interference model.',
     )
-    parser.add_argument('--scheduler',
-        dest       = 'scheduler',
+    parser.add_argument('--mobilityModel',
+        dest       = 'mobilityModel',
         nargs      = '+',
         type       = str,
-        default    = 'none',
-        help       = '[tsch] Choose the schedule model.',
+        default    = 'RPGM',
+        help       = '[phy] Choose the mobility model.',
     )
-    parser.add_argument('--otfenabled',
-        dest       = 'otfEnabled',
-        nargs      = '+',
-        type       = bool,
-        default    = True,
-        help       = '[otf] Chose between otf on/off.',
-    )
-    parser.add_argument('--numBroadcastCells',
-        dest       = 'numBroadcastCells',
-        nargs      = '+',
-        type       = int,
-        default    = 0,
-        help       = '[tsch] number of broadcast cells (per channel).',
-    )
-    parser.add_argument('--overlappingBrCells',
-        dest       = 'overlappingBrCells',
-        nargs      = '+',
-        type       = float,
-        default    = 0,
-        help       = '[tsch] % of overlapping allowed  in broadcast cells.',    #not used anymore
-    )
-    parser.add_argument('--generateIndividualSummarys',
-        dest       = 'generateIndividualSummarys',
-        nargs      = '+',
-        type       = bool,
-        default    = False,
-        help       = '[debug] add individual summarys per node for Throughput.',
-    )
-    
     options        = parser.parse_args()
     
     return options.__dict__
@@ -259,6 +289,7 @@ def runSims(options):
     
     # compute all the simulation parameter combinations
     combinationKeys     = sorted([k for (k,v) in options.items() if type(v)==list])
+    print options.items()
     simParams           = []
     for p in itertools.product(*[options[k] for k in combinationKeys]):
         simParam = {}
@@ -285,7 +316,7 @@ def runSims(options):
                runNum+1,
                simParam['numRuns']
             )
-
+            #print simParam
             printOrLog(simParam,output)
             
             # create singletons
@@ -321,14 +352,14 @@ def main():
     
     if options['gui']:
         # create the GUI
-        #gui        = SimGui.SimGui()  # removed gui
+        gui        = SimGui.SimGui()
         
         # run simulations (in separate thread)
         simThread  = threading.Thread(target=runSims,args=(options,))
         simThread.start()
         
         # start GUI's mainloop (in main thread)
-        #gui.mainloop()  # removed gui
+        gui.mainloop()
     else:        
         # run the simulations
         runSims(options)
