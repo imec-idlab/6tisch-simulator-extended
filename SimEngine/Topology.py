@@ -6,6 +6,7 @@
 \author Kazushi Muraoka <k-muraoka@eecs.berkeley.edu>
 \author Nicola Accettura <nicola.accettura@eecs.berkeley.edu>
 \author Xavier Vilajosana <xvilajosana@eecs.berkeley.edu>
+Added changes for 6tisch-sim-extended: Esteban Municio <esteban.municio@uantwerpen.be>
 '''
 
 #============================ logging =========================================
@@ -22,31 +23,33 @@ log.addHandler(NullHandler())
 
 import random
 import math
-
+import numpy as np
 import SimSettings
-
+import SimEngine
 #============================ defines =========================================
 
 #============================ body ============================================
 
 class Topology(object):
     
+    EIGTH_SIX_EIGTH_GHZ         = 868000000   # Hz
     TWO_DOT_FOUR_GHZ         = 2400000000   # Hz
     PISTER_HACK_LOWER_SHIFT  = 40           # -40 dB
     SPEED_OF_LIGHT           = 299792458    # m/s
     
-    STABLE_RSSI              =  -89   #dbm, 1 PDR
+    STABLE_RSSI              =  -89   	     # dBm, corresponds to PDR = 0.8702 (see rssiPdrTable below)
     STABLE_NEIGHBORS         = 1
     
     def __init__(self, motes):
         
         # store params
         self.motes           = motes
-        random.seed(3)
+        
+	#random.seed(13)
+	
         # local variables
         self.settings        = SimSettings.SimSettings()
-
-	self.starTopology=False
+	self.engine        = SimEngine.SimEngine()
         
     #======================== public ==========================================
     
@@ -65,113 +68,454 @@ class Topology(object):
                 mote.role_setDagRoot()
                 dagRoot = mote
         assert dagRoot
-        
-        # put DAG root at center of area
-        dagRoot.setLocation(
-            x = self.settings.squareSide/2,
-            y = self.settings.squareSide/2
-        )
-        
+
+        if self.settings.mobilityModel!='RPGM':
+        	# put DAG root at center of area
+		dagRoot.setLocation(
+		    x = self.settings.squareSide/2,
+		    y = self.settings.squareSide/2
+
+		)
+        else:
+		#put dag root in the lower left corner
+	        dagRoot.setLocation(
+	    		x=0.35,
+	    		y=2.0
+        	)	
+
+
+	#iniazilizing some variables for the mesh-struct topology
+	if self.settings.topology=='mesh-struct': 
+		region="null"
+		currentLevel=0
+		numNodesInThisLevel=0
+		alphaPrev=0
+
+		#motes are distributed evenly (aprox) in the different divisions: left up up, left up down, left down up, etc.
+		subLevelFilling_luu=0
+		subLevelFilling_lud=0
+		subLevelFilling_ldu=0
+		subLevelFilling_ldd=0
+		subLevelFilling_rud=0
+		subLevelFilling_rdu=0
+		subLevelFilling_rdd=0
+		subLevelFilling_ruu=0
+		subLevelFilling_ru=0
+		subLevelFilling_lu=0
+		subLevelFilling_rd=0
+		subLevelFilling_ld=0
+		
+		#set distribution		
+		nodesPerLevel=math.ceil((len(self.motes))/(self.settings.maxNumHops))		
+		subLevelFilling=math.ceil(len(self.motes)/(self.settings.maxNumHops)/8)
+
+		x=0
+		y=0
+		
+		# increment fo distance at each hop
+		alphaDistance=self.settings.squareSide/self.settings.maxNumHops/2
+		alphaInitVariance=alphaDistance/25	#add some variability in the placement
+
+		#iteration counter for placing attempts
+		it=0
+
         # reposition each mote until it is connected
         connectedMotes = [dagRoot]
         for mote in self.motes:
             if mote in connectedMotes:
                 continue
+
             connected = False
             while not connected:
-                # pick a random location
-                mote.setLocation(
-                    x = self.settings.squareSide*random.random(),
-                    y = self.settings.squareSide*random.random()
-                )
-                
+           
                 numStableNeighbors = 0
-                if self.starTopology==False:
+
+		#-------------------------------------------------------#
+		#default topology: nodes are added randomly until are sucessfully connected with numStableNeighbors parents
+                if self.settings.topology=='mesh':
+			# pick a random location
+			mote.setLocation(
+		            x = self.settings.squareSide*random.random(),
+		            y = self.settings.squareSide*random.random()
+		        )
+
 		        # count number of neighbors with sufficient RSSI
 		        for cm in connectedMotes:
 		            
-		            rssi = self._computeRSSI(mote, cm)
+	            	    if self.settings.mobilityModel=='static' or self.settings.mobilityModel=='staticUNI':
+			    	rssi = self._computeRSSI_static(mote, cm)
+			    else:
+				rssi = self._computeRSSI_staticRay(mote, cm)
 		            mote.setRSSI(cm, rssi)
 		            cm.setRSSI(mote, rssi)
 		            
 		            if rssi>self.STABLE_RSSI:
 		                numStableNeighbors += 1
+		                print str(mote.id)+" - "+str(cm.id)+" : "+str(rssi)
                 	# make sure it is connected to at least STABLE_NEIGHBORS motes 
                 	# or connected to all the currently deployed motes when the number of deployed motes 
                 	# are smaller than STABLE_NEIGHBORS
                 	if numStableNeighbors >= self.STABLE_NEIGHBORS or numStableNeighbors == len(connectedMotes):
-                    		connected = True
+				#avoid the nodes are placed in not valid locations (i.e., obstacles)
+				if self.engine.checkValidPositionMotePlacement(mote.x,mote.y,True):
+                    			connected = True
+		#-------------------------------------------------------#
+		# exactly 1 hop network. All nodes connected to the root
+                elif self.settings.topology=='star':
+			mote.setLocation(
+		            x = self.settings.squareSide*random.random(),
+		            y = self.settings.squareSide*random.random()
+		        )						    
 
+		        if self.settings.mobilityModel=='static' or self.settings.mobilityModel=='staticUNI':
+				rssi1 = self._computeRSSI_static(mote, cm)	#use pister hack for initial RSSI 
+			else:
+				rssi1 = self._computeRSSI_staticRay(mote, cm)	#use rayleigh for initial RSSI 
 
-                else:
-		        #emunicio star topology
-		        rssi = self._computeRSSI(mote, dagRoot)
-		        mote.setRSSI(dagRoot, rssi)
-		        dagRoot.setRSSI(mote, rssi)
-		        if rssi>self.STABLE_RSSI:
+		        mote.setRSSI(dagRoot, rssi1)
+		        dagRoot.setRSSI(mote, rssi1)
+		        if rssi1>self.STABLE_RSSI:
 		            connected = True
-                    
-                #add here more topologies
-                
-            
+			    for cm in connectedMotes:	
+				if cm !=dagRoot:	            
+		                    if self.settings.mobilityModel=='static' or self.settings.mobilityModel=='staticUNI':
+				    	rssi = self._computeRSSI_static(mote, cm)	#use pister hack for initial RSSI 
+				    else:
+					rssi = self._computeRSSI_staticRay(mote, cm)	#use rayleigh for initial RSSI 
+			            mote.setRSSI(cm, rssi)
+		                    cm.setRSSI(mote, rssi)
+
+		#-------------------------------------------------------#
+		#motes are placed forcing a specific avg number of hops
+                elif self.settings.topology=='mesh-struct': 
+		   	    
+		    leftOrRight=random.random()
+		    upOrDown=random.random()
+
+		    #set the min and max values for x and y in the later placement for the different divisions
+		    region=None
+		    axisV=None
+		    if leftOrRight>=0.5 and upOrDown >=0.5: 				#right down
+			if currentLevel==0:
+			    if subLevelFilling_rd <= (subLevelFilling*2):
+				    region="rd"				
+				    xmin=(self.settings.squareSide/2)
+				    xmax=(self.settings.squareSide/2)+alphaDistance		
+				    ymin=(self.settings.squareSide/2)
+				    ymax=(self.settings.squareSide/2)+alphaDistance
+			else:
+			    supOrInf=random.random()
+			    if supOrInf >=0.5:						#right down up
+				if subLevelFilling_rdu <= subLevelFilling:
+					axisV=True
+					region="rdu"
+					xmin=(self.settings.squareSide/2)+alphaPrev
+				    	xmax=(self.settings.squareSide/2)+alphaDistance		
+				    	ymin=(self.settings.squareSide/2)
+				    	ymax=(self.settings.squareSide/2)+alphaPrev
+			    else:							#right down down
+				if subLevelFilling_rdd <= subLevelFilling:
+					axisV=False
+					region="rdd"
+					xmin=(self.settings.squareSide/2)
+				    	xmax=(self.settings.squareSide/2)+alphaDistance		
+				    	ymin=(self.settings.squareSide/2)+alphaPrev
+				    	ymax=(self.settings.squareSide/2)+alphaDistance
+		    if leftOrRight>=0.5 and upOrDown <0.5:  				#right up
+			if currentLevel==0:
+			    if subLevelFilling_ru <= (subLevelFilling*2):
+				    region="ru"				
+				    xmin=(self.settings.squareSide/2)
+				    xmax=(self.settings.squareSide/2)+alphaDistance		
+				    ymin=(self.settings.squareSide/2)-alphaDistance
+				    ymax=(self.settings.squareSide/2)
+			else:
+			    supOrInf=random.random()
+			    if supOrInf >=0.5:						#right up up
+				if subLevelFilling_ruu <= subLevelFilling:
+					axisV=False
+					region="ruu"
+					xmin=(self.settings.squareSide/2)
+				    	xmax=(self.settings.squareSide/2)+alphaDistance		
+				    	ymin=(self.settings.squareSide/2)-alphaDistance	
+				    	ymax=(self.settings.squareSide/2)-alphaPrev
+			    else:							#right up down
+				if subLevelFilling_rud <= subLevelFilling:
+					axisV=True
+					region="rud"
+					xmin=(self.settings.squareSide/2)+alphaPrev
+				    	xmax=(self.settings.squareSide/2)+alphaDistance		
+				    	ymin=(self.settings.squareSide/2)-alphaPrev
+				    	ymax=(self.settings.squareSide/2)
+		    if leftOrRight<0.5 and upOrDown >=0.5:   				 #left down			
+			if currentLevel==0:
+			    if subLevelFilling_ld <= (subLevelFilling*2):
+				    region="ld"				
+				    xmin=(self.settings.squareSide/2)-alphaDistance
+				    xmax=(self.settings.squareSide/2)		
+				    ymin=(self.settings.squareSide/2)
+				    ymax=(self.settings.squareSide/2)+alphaDistance
+			else:
+			    supOrInf=random.random()
+			    if supOrInf >=0.5:						#left down up
+				if subLevelFilling_ldu <= subLevelFilling:
+					region="ldu"
+					axisV=True
+					xmin=(self.settings.squareSide/2)-alphaDistance	
+				    	xmax=(self.settings.squareSide/2)-alphaPrev	
+				    	ymin=(self.settings.squareSide/2)
+				    	ymax=(self.settings.squareSide/2)+alphaPrev
+			    else:							#left down down
+				if subLevelFilling_ldd <= subLevelFilling:
+					region="ldd"
+					axisV=False	
+					xmin=(self.settings.squareSide/2)-alphaDistance	
+				    	xmax=(self.settings.squareSide/2)	
+				    	ymin=(self.settings.squareSide/2)+alphaPrev
+				    	ymax=(self.settings.squareSide/2)+alphaDistance
+		    if leftOrRight<0.5 and upOrDown <0.5:				 #left up			
+			if currentLevel==0:	
+			    if subLevelFilling_lu <= (subLevelFilling*2):
+				    region="lu"				
+				    xmin=(self.settings.squareSide/2)-alphaDistance
+				    xmax=(self.settings.squareSide/2)		
+				    ymin=(self.settings.squareSide/2)-alphaDistance
+				    ymax=(self.settings.squareSide/2)			    
+			else:								
+			    supOrInf=random.random()
+			    if supOrInf >=0.5:						#left up up
+				if subLevelFilling_luu <= subLevelFilling:
+					region="luu"
+					axisV=False
+					xmin=(self.settings.squareSide/2)-alphaDistance	
+				    	xmax=(self.settings.squareSide/2)	
+				    	ymin=(self.settings.squareSide/2)-alphaDistance
+				    	ymax=(self.settings.squareSide/2)-alphaPrev
+			    else:							#left up down
+				if subLevelFilling_lud <= subLevelFilling:
+					region="lud"
+					axisV=True
+					xmin=(self.settings.squareSide/2)-alphaDistance	
+				    	xmax=(self.settings.squareSide/2)-alphaPrev						
+				    	ymin=(self.settings.squareSide/2)-alphaPrev
+				    	ymax=(self.settings.squareSide/2)
+
+		    if (subLevelFilling_lu+subLevelFilling_ld+subLevelFilling_ru+subLevelFilling_rd)>=(subLevelFilling*4):
+			    subLevelFilling_lu-=1
+			    subLevelFilling_ld-=1
+			    subLevelFilling_ru-=1
+			    subLevelFilling_rd-=1
+
+		    if region!=None:
+			    if axisV==None:	#current level 0
+				mote.setLocation(
+				    x = random.uniform(xmin,xmax),		
+				    y = random.gauss(((ymax+ymin)/2),(alphaInitVariance))			
+				)
+			
+			    else:		# level > 0
+				#placing mote vertically uniform, horizontally gaussian
+				if axisV==True:		
+				    mote.setLocation(			
+					x=random.gauss(((xmax+xmin)/2),(alphaInitVariance)),
+					y=random.uniform(ymin,ymax)
+			    	    )
+				#placing mote horizontally uniform, vertically gaussian
+				else:
+				    mote.setLocation(			
+					x=random.uniform(xmin,xmax),
+					y=random.gauss(((ymax+ymin)/2),(alphaInitVariance))
+			    	    )
+
+			    for cm in connectedMotes:
+				    if self.settings.mobilityModel=='static' or self.settings.mobilityModel=='staticUNI':
+					rssi = self._computeRSSI_static(mote, cm)	#use pister hack for initial RSSI 
+				    else:
+					rssi = self._computeRSSI_staticRay(mote, cm)	#use rayleigh for initial RSSI 
+
+				    mote.setRSSI(cm, rssi)
+				    cm.setRSSI(mote, rssi)
+				    
+				    if rssi>self.STABLE_RSSI:
+					connected = True
+					it=0	#reset attempt counter
+					continue
+			    #increase counters in division and level
+			    if connected==True:
+								
+				numNodesInThisLevel+=1	
+				if region=="luu":
+					subLevelFilling_luu+=1				
+				if region=="lud":
+					subLevelFilling_lud+=1				
+				if region=="ldu":
+					subLevelFilling_ldu+=1
+				if region=="ldd":
+					subLevelFilling_ldd+=1
+				if region=="rud":
+					subLevelFilling_rud+=1
+				if region=="rdu":
+					subLevelFilling_rdu+=1
+				if region=="rdd":
+					subLevelFilling_rdd+=1
+				if region=="ruu":
+					subLevelFilling_ruu+=1	
+				if region=="lu":
+					subLevelFilling_lu+=1	
+				if region=="ru":
+					subLevelFilling_ru+=1
+				if region=="ld":
+					subLevelFilling_ld+=1
+				if region=="rd":
+					subLevelFilling_rd+=1
+			
+				#this level has been already filled.
+				if numNodesInThisLevel >= nodesPerLevel:	
+	
+				    #going to the next level				    
+				    if currentLevel < (self.settings.maxNumHops-1):  
+					numNodesInThisLevel=0        
+				    	currentLevel+=1
+					alphaPrev=alphaDistance
+				    	alphaDistance+=(self.settings.squareSide/self.settings.maxNumHops/2)
+				    	subLevelFilling_luu=0
+					subLevelFilling_lud=0
+					subLevelFilling_ldu=0
+					subLevelFilling_ldd=0
+					subLevelFilling_rud=0
+					subLevelFilling_rdu=0
+					subLevelFilling_rdd=0
+					subLevelFilling_ruu=0
+					subLevelFilling_rd=0
+					subLevelFilling_ld=0
+					subLevelFilling_ru=0
+					subLevelFilling_lu=0
+					
+				    #this is the last level: place the remaining mote in this level
+				    else:					
+					numNodesInThisLevel=0
+				    	subLevelFilling_luu=0
+					subLevelFilling_lud=0
+					subLevelFilling_ldu=0
+					subLevelFilling_ldd=0
+					subLevelFilling_rud=0
+					subLevelFilling_rdu=0
+					subLevelFilling_rdd=0
+					subLevelFilling_ruu=0
+					subLevelFilling_rd=0
+					subLevelFilling_ld=0
+					subLevelFilling_ru=0
+					subLevelFilling_lu=0
+
+			    # not successfully connected. 
+			    if connected==False:
+				it+=1				
+				#if impossible to place, reset the division conters and place it wherever is possible.
+				if it>1000:					
+					subLevelFilling_rd=0
+					subLevelFilling_ld=0
+					subLevelFilling_ru=0
+					subLevelFilling_lu=0 
+					subLevelFilling_luu=0
+					subLevelFilling_lud=0
+					subLevelFilling_ldu=0
+					subLevelFilling_ldd=0
+					subLevelFilling_rud=0
+					subLevelFilling_rdu=0
+					subLevelFilling_rdd=0
+					subLevelFilling_ruu=0
+	    #one mote has been connected 
             connectedMotes += [mote]
-
-
-        if self.starTopology==False:
-		# for each mote, compute PDR to each neighbors
-		for mote in self.motes:
-		    for m in self.motes:
-		        if mote==m:
-		            continue
-		        if mote.getRSSI(m)>mote.minRssi:
-		            pdr = self._computePDR(mote,m)
-		            mote.setPDR(m,pdr)
-		            m.setPDR(mote,pdr)
-        else:
+		
+	# for each mote, compute PDR to each neighbors
+	for mote in self.motes:
+	    for m in self.motes:
+	        if mote==m:
+	            continue
+	        if mote.getRSSI(m)>mote.minRssi:
+	            pdr = self._computePDR(mote,m)
+	            mote.setPDR(m,pdr)
+	            m.setPDR(mote,pdr)       
         
-		#emunicio star topology
-		for m in self.motes:
-		    if dagRoot==m:
-		        continue
-		    if dagRoot.getRSSI(m)>dagRoot.minRssi:
-		        pdr = self._computePDR(dagRoot,m)
-		        dagRoot.setPDR(m,pdr)
-		        m.setPDR(dagRoot,pdr)
+    #@profile	
+    def updateTopology(self):
+        '''
+        update topology: re-calculate RSSI values. For scenarios != static
+        '''
 
-	#add here more topologies
-                
-        # print topology information       
-        for mote in self.motes:
-            for neighbor in self.motes:
-                try:
-                    distance = self._computeDistance(mote,neighbor)
-                    rssi     = mote.getRSSI(neighbor)
-                    pdr      = mote.getPDR(neighbor)
-                except KeyError:
-                    pass   
-    
+	for mote1 in self.motes:
+		for mote2 in self.motes:
+		    if mote1.id != mote2.id:
+			rssi = self._computeRSSI_mobility(mote1, mote2)		#the RSSI is calculated with applying a random variation
+			mote1.setRSSI(mote2, rssi)
+		        mote2.setRSSI(mote1, rssi)
+			if rssi>mote1.minRssi:
+			    	pdr = self.rssiToPdr(rssi)
+			    	mote1.setPDR(mote2,pdr)
+			   	mote2.setPDR(mote1,pdr)
+			else:
+			    	pdr = 0
+			    	mote1.setPDR(mote2,pdr)
+			   	mote2.setPDR(mote1,pdr)
+   
     #======================== private =========================================
+
+    def _computeRSSI_mobility(self,mote,neighbor):
+        ''' computes RSSI between any two nodes (not only neighbors) for mobility scenarios applying a 12dB uniform variation'''
+       
+	mu=mote.staticPhys[neighbor]
+	rssi=random.uniform(-6, 6)+mu
+	return rssi
+
+    def _computeRSSI_staticRay(self,mote,neighbor):
+        ''' computes RSSI between any two nodes (not only neighbors) according to the rayleigh model for the first time.'''
+
+	# distance in m
+	distance = self._computeDistance(mote,neighbor)
+	
+	# sqrt and inverse of the free space path loss
+	fspl = (self.SPEED_OF_LIGHT/(4*math.pi*distance*self.TWO_DOT_FOUR_GHZ))
+	
+	# simple friis equation in Pr=Pt+Gt+Gr+20log10(c/4piR)
+	pr = mote.txPower + mote.antennaGain + neighbor.antennaGain + (20*math.log10(fspl))
+	
+	#using Rayleighmodel instead of pister-hack
+	meanvalue = math.pow(10.0,pr/10.0)
+	modevalue = np.sqrt(2 / np.pi) * meanvalue
+	rssi = np.random.rayleigh(modevalue, 1)
+
+	#save the first rssi value calculated for future use
+	mote.staticPhys[neighbor]=10*math.log10(rssi)
+	neighbor.staticPhys[mote]=10*math.log10(rssi)
+
+	return 10*math.log10(rssi)
     
-    def _computeRSSI(self,mote,neighbor):
-        ''' computes RSSI between any two nodes (not only neighbors) according to the Pister-hack model.'''
-        
-        # distance in m
-        distance = self._computeDistance(mote,neighbor)
-        
-        # sqrt and inverse of the free space path loss
-        fspl = (self.SPEED_OF_LIGHT/(4*math.pi*distance*self.TWO_DOT_FOUR_GHZ))
-        
-        # simple friis equation in Pr=Pt+Gt+Gr+20log10(c/4piR)
-        pr = mote.txPower + mote.antennaGain + neighbor.antennaGain + (20*math.log10(fspl))
-        
-        # according to the receiver power (RSSI) we can apply the Pister hack model.
-        mu = pr-self.PISTER_HACK_LOWER_SHIFT/2 #chosing the "mean" value
-    
-        # the receiver will receive the packet with an rssi uniformly distributed between friis and friis -40
-        rssi = mu + random.uniform(-self.PISTER_HACK_LOWER_SHIFT/2, self.PISTER_HACK_LOWER_SHIFT/2)
-        #print "RSSI "+str(rssi)
-        return rssi
-    
+
+    def _computeRSSI_static(self,mote,neighbor):
+        ''' computes RSSI between any two nodes (not only neighbors) according to the Pister-hack model for the first time.'''
+
+	# distance in m
+	distance = self._computeDistance(mote,neighbor)
+	
+	# sqrt and inverse of the free space path loss
+	fspl = (self.SPEED_OF_LIGHT/(4*math.pi*distance*self.TWO_DOT_FOUR_GHZ))
+	
+	# simple friis equation in Pr=Pt+Gt+Gr+20log10(c/4piR)
+	pr = mote.txPower + mote.antennaGain + neighbor.antennaGain + (20*math.log10(fspl))
+
+	# according to the receiver power (RSSI) we can apply the Pister hack model.	 
+	mu = pr-self.PISTER_HACK_LOWER_SHIFT/2 #chosing the "mean" value
+
+	# the receiver will receive the packet with an rssi uniformly distributed between friis and friis -40
+	rssi = mu + random.uniform(-self.PISTER_HACK_LOWER_SHIFT/2, self.PISTER_HACK_LOWER_SHIFT/2)
+
+	#save the first rssi value calculated for future use
+	mote.staticPhys[neighbor]=rssi
+	neighbor.staticPhys[mote]=rssi
+
+	return rssi
+
+
     def _computePDR(self,mote,neighbor):
         ''' computes pdr to neighbor according to RSSI'''
         
@@ -185,6 +529,8 @@ class Topology(object):
         http://wsn.eecs.berkeley.edu/connectivity/?dataset=dust
         '''
         
+	#TODO set rssiPdrTable for the 868 MHz band -> FSK 500KHz, 500kbps 
+
         rssiPdrTable    = {
             -97:    0.0000, # this value is not from experiment
             -96:    0.1494,
@@ -223,7 +569,7 @@ class Topology(object):
         
         assert pdr>=0.0
         assert pdr<=1.0
-         
+          
         return pdr
     
     def _computeDistance(self,mote,neighbor):
