@@ -71,6 +71,11 @@ if __name__ == '__main__':
     numradios=os.sys.argv[11]
     trafficType=os.sys.argv[12]
 
+    #when using RPGM, the average number of hops can not be specified. instead use default placement
+    if mobility=='RPGM' and maxnumhops!='x':
+	print "For RPGM use mesh topology: x "
+	os.sys.exit(0)
+
     multiprocessing.freeze_support()
     #num_cpus = multiprocessing.cpu_count()
     num_cpus = MIN_TOTAL_RUNRUNS	#specify manually the number of CPUs -> 1 CPU per run
