@@ -118,7 +118,6 @@ class SimStats(object):
 	if self.settings.mobilityModel=='RWM':
 	    #start moving when the experiment starts
 	    if self.endScheduled:
-		if not self.engine.allMotesGrouped():
 		    for m in self.engine.motes:
 			if m.id!=0:
 			    m._updateLocation()
