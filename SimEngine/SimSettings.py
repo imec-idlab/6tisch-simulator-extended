@@ -40,7 +40,6 @@ class SimSettings(object):
     
     def __init__(self,failIfNotInit=False,**kwargs):
         
-         
         if failIfNotInit and not self._init:
             raise EnvironmentError('SimSettings singleton not initialized.')
         
@@ -60,7 +59,6 @@ class SimSettings(object):
     
     def getOutputFile(self):
         # directory
-        
         dirname   = os.path.join(
             self.simDataDir,
             '_'.join(['{0}_{1}'.format(k,getattr(self,k)) for k in self.combinationKeys]),
@@ -70,9 +68,9 @@ class SimSettings(object):
         
         # file
         if self.cpuID==None:
-            tempname         = 'output_{0}_nodes_{1}.ods'.format(self.numMotes,self.scheduler)
+            tempname         = 'output.dat'
         else:
-            tempname         = 'output_{0}_nodes_{1}_cpu{2}.ods'.format(self.numMotes,self.scheduler,self.cpuID)
+            tempname         = 'output_cpu{0}.dat'.format(self.cpuID)
         datafilename         = os.path.join(dirname,tempname)
         
         return datafilename
