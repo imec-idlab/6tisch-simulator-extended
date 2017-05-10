@@ -359,8 +359,8 @@ class SimStats(object):
     def _fileWriteSummary(self):
 	output  = []
 	output += [
-            '#results runNum={0} totalPacketSent {1} totalPacketReceived {2} totalOLGenerated {3} totalThReceived {4} dropsByCollisions {5} totalTX {6} totalRX {7} dropsPropagation {8} joiningTime {9} txcellsTime {10} sendingtime {11} avgVisibleNeigh {12} TRX {13} RDX {14} Locked {15}'.format(
-                self.runNum,self.engine.packetsSentToRoot,self.engine.packetReceivedInRoot,self.engine.olGeneratedToRoot/(self.settings.numMotes-1),self.engine.thReceivedInRoot/(self.settings.numMotes-1), self.engine.dropByCollision, self.engine.totalTx, self.engine.totalRx, self.engine.dropByPropagation, self.engine.getMaxJoiningTime()/self.settings.slotframeLength, self.engine.getMaxNodeHasTxCellsTime()/self.settings.slotframeLength,int(self.engine.getMaxNodeSendingTime()/self.settings.slotframeLength), self.engine.getAvgVisibleNeighbors(),self.engine.TRX, self.engine.RDX, self.engine.Locked)
+            '#results runNum={0} totalPacketSent {1} totalPacketReceived {2} totalOLGenerated {3} totalThReceived {4} dropsByCollisions {5} totalTX {6} totalRX {7} dropsPropagation {8} joiningTime {9} txcellsTime {10} sendingtime {11} avgVisibleNeigh {12} TRX {13} RDX {14}'.format(
+                self.runNum,self.engine.packetsSentToRoot,self.engine.packetReceivedInRoot,self.engine.olGeneratedToRoot/(self.settings.numMotes-1),self.engine.thReceivedInRoot/(self.settings.numMotes-1), self.engine.dropByCollision, self.engine.totalTx, self.engine.totalRx, self.engine.dropByPropagation, self.engine.getMaxJoiningTime()/self.settings.slotframeLength, self.engine.getMaxNodeHasTxCellsTime()/self.settings.slotframeLength,int(self.engine.getMaxNodeSendingTime()/self.settings.slotframeLength), self.engine.getAvgVisibleNeighbors(),self.engine.TRX, self.engine.RDX)
 		  ]
 	output  = '\n'.join(output)
         
