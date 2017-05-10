@@ -6,7 +6,10 @@
 \author Kazushi Muraoka <k-muraoka@eecs.berkeley.edu>
 \author Nicola Accettura <nicola.accettura@eecs.berkeley.edu>
 \author Xavier Vilajosana <xvilajosana@eecs.berkeley.edu>
+Added changes for 6tisch-sim-extended: Esteban Municio <esteban.municio@uantwerpen.be>
 '''
+
+
 
 #============================ logging =========================================
 
@@ -27,6 +30,7 @@ import Topology
 import Mote
 import SimSettings
 import inspect
+import random
 
 #============================ defines =========================================
 
@@ -54,7 +58,7 @@ class SimEngine(threading.Thread):
             return
         self._init = True
         #===== end singleton
-        
+       
         # store params
         self.runNum                         = runNum
         
@@ -68,11 +72,36 @@ class SimEngine(threading.Thread):
         self.endCb                          = []
         self.events                         = []
         self.settings                       = SimSettings.SimSettings()
-        self.propagation                    = Propagation.Propagation()
-        self.motes                          = [Mote.Mote(id) for id in range(self.settings.numMotes)]
+	self.propagation                    = Propagation.Propagation()
+	self.motes                          = [Mote.Mote(id) for id in range(self.settings.numMotes)]
+
+	#before create topology, define the obstacles
+	if self.settings.mobilityModel=='RPGM':	
+		#set a destination for all motes in RPGM
+		self.setNewDestination()
+		self.margin=0.02
+		#self.obstacles="4squares"
+		self.obstacles="2rectangles"
+	else:
+		self.obstacles="none"
+       
+	#check maxNumHops
+	if self.settings.maxNumHops!='x':
+		self.settings.maxNumHops=int(self.settings.maxNumHops)
         self.topology                       = Topology.Topology(self.motes)
         self.topology.createTopology()
+       
 
+
+
+
+	self.joiningTime={}
+	self.nodeHasTxCellsTime={}
+	self.nodeSendingTime={}
+
+
+	
+        
         # boot all motes
         for i in range(len(self.motes)):
             self.motes[i].boot()
@@ -82,60 +111,206 @@ class SimEngine(threading.Thread):
         
         # initialize parent class
         threading.Thread.__init__(self)
-        #print "Initialized Parent class"
         self.name                           = 'SimEngine'
-        self.scheduler=self.settings.scheduler
-        
 
+      
 	#emunicio
-        self.timeElapsedFlow=0        
+
+	#total TX and RX of data packets
         self.totalTx=0
         self.totalRx=0
+
+
+        self.timeElapsedFlow=0        
+
         self.dropByCollision=0
         self.dropByPropagation=0
-        self.bcstReceived=0
-        self.bcstTransmitted=0
+
+
+        self.deBrasReceived=0
+        self.deBrasTransmitted=0
+
+
 	self.packetsSentToRoot=0  #total packets sent from all nodes to the root node
         self.packetReceivedInRoot=0 #total packets sent from all nodes to the root node
 	self.olGeneratedToRoot=0  #average throughput generated	
 	self.thReceivedInRoot=0   #average throughput received
-     
-        # emunicio settings
-        self.numBroadcastCell=self.settings.numBroadcastCells
-        
-        
-                      
-    
-    def destroy(self):
-        
-        print "Drops by collision "+str(self.dropByCollision)
-	print "Drops by propagation "+str(self.dropByPropagation)
-        print "Broadcast received "+str(self.bcstReceived)
-        print "Broadcast sent "+str(self.bcstTransmitted)
-        if self.bcstTransmitted!=0: #avoiding zero division
-            print "Broadcast PER "+str(float(self.bcstReceived)/self.bcstTransmitted)
-        
-        print "TX total "+str(self.totalTx)
-        print "RX total "+str(self.totalRx)
-        print "PER "+str(float(self.totalRx)/self.totalTx)
+	self.pkprobeGeneratedToRoot=0  #packet probe generated	
+	self.pkprobeReceivedInRoot=0   #packet probe received
 
+	self.TRX=0   	
+        self.RDX=0
+
+	#optionally show the procedence in hops of the packets  
+	self.packets12hops=0
+        self.packets11hops=0
+	self.packets10hops=0
+	self.packets9hops=0
+	self.packets8hops=0
+	self.packets7hops=0
+	self.packets6hops=0
+        self.packets5hops=0
+	self.packets4hops=0
+	self.packets3hops=0
+	self.packets2hops=0
+	self.packets1hops=0
+        self.packets0hops=0
+
+	#mote object that is the dagroot
+	self.dagRoot=None
+
+	#the saturation has been forced to start due to saturation reached or time limit exceeded
+	self.simulationForced=False
+
+	
+	self.getAllNodesHaveTxCellsAsn=None	#useless
+            
+
+	#initial values that will be overwritten in SimStats
+        self.experimentInitTime=0
+        self.experimentEndTime=self.settings.numCyclesPerRun
+
+	#specifies the turn for a tidy joining process	
+	self.turn=1
+
+	#flag for saturation
+	self.saturationReached=False
+
+
+    def checkConvergence(self):
+	'''
+	Used for knowing if the experiment can start
+	'''
+	if self.saturationReached==True: #simulation has been forced by saturation reached
+	    return True
+
+	if self.simulationForced==True:	#simulation has been forced by either time exceeded or saturation reached
+	    return True
+
+	totThReq=0
+	totThTxCells=0
+	for m1 in self.motes:
+	    totThReq=totThReq+m1.threq
+	for m2 in self.motes:	
+	    totThTxCells=totThTxCells+len(m2.getTxCells())
+
+	if totThTxCells > totThReq:
+		#enough cells have been allocated, experiment can start
+		return True
+	else:
+		#not enough cells have been allocated. Do not start experiment yet
+		return False
+  
+
+    def setNewDestination(self):
+	''' 
+	Defines the destination for all motes
+	'''
+	self.destx=2.20
+	self.desty=0.203
+
+	for mote in self.motes:
+		mote.destx=2.20
+		mote.desty=0.203
+
+
+    def checkValidPosition(self, xcoord,ycoord,countSquare):
+	''' 
+	Checks if a given postition is valid when moving
+	'''
+	if self.obstacles=='2rectangles':
+		return self.checkValidPosition2rectangles(xcoord,ycoord,countSquare)
+	if self.obstacles=='4squares':
+		return self.checkValidPosition4squares(xcoord,ycoord,countSquare)
+	if self.obstacles=='none':
+		return True
+	else:
+		assert False
+
+    def checkValidPositionMotePlacement(self, xcoord,ycoord,countSquare):
+	''' 
+	Checks if a given postition is valid when initially placing
+	'''
+	if self.obstacles=='2rectangles':
+		return self.checkValidPosition2rectanglesMotePlacement(xcoord,ycoord,countSquare)
+	if self.obstacles=='4squares':
+		assert False #not implemented
+	if self.obstacles=='none':
+		return True
+	else:
+		assert False
+
+
+    def checkValidPosition2rectangles(self, xcoord,ycoord,countSquare):	
+	''' 
+	Checks if a given postition is inside the 2 rectangles (obstacles) with a smaller margin when motes are moving
+	'''
+	inSquare=False	#total area
+	insideObstacle1=False	#rectangle 1
+	insideObstacle2=False	#rectangle 2
+	if countSquare:
+		if (xcoord<self.settings.squareSide and ycoord<self.settings.squareSide) and (xcoord > 0 and ycoord > 0):
+			inSquare=True		
+	else:
+		inSquare=True
+	
+	if (xcoord<(1.6+self.margin)) and (ycoord>(0.5-self.margin) and (ycoord<(1+self.margin))):
+		insideObstacle1=True
+	if (xcoord>(1-self.margin)) and (ycoord>(1.5-self.margin)):
+		insideObstacle2=True
+
+	if inSquare and not insideObstacle1 and not insideObstacle2:			
+		return True
+	else:
+		return False
+
+
+    def checkValidPosition2rectanglesMotePlacement(self, xcoord,ycoord,countSquare):
+	''' 
+	Checks if a given postition is inside the 2 rectangles (obstacles) with a bigger margin (margin + 10 meters) when motes are initially placed
+	'''	
+	inSquare=False	#total area
+	insideObstacle1=False	#rectangle 1
+	insideObstacle2=False	#rectangle 2
+	notoutsidethebottomleft=False	#for placing, only locate in the left down corner
+	if countSquare:
+		if (xcoord<self.settings.squareSide and ycoord<self.settings.squareSide) and (xcoord > 0 and ycoord > 0):
+			inSquare=True		
+	else:
+		inSquare=True
+	
+	if (xcoord<(1.6+self.margin+0.01)) and (ycoord>(0.5-self.margin-0.01) and (ycoord<(1+self.margin+0.01))):
+		insideObstacle1=True
+	if (xcoord>(1-self.margin-0.01)) and (ycoord>(1.5-self.margin-0.01) ):
+		insideObstacle2=True
+	if (xcoord< 1.25) and (ycoord>1.25):
+		notoutsidethebottomleft=True
+
+	if inSquare and not insideObstacle1 and not insideObstacle2 and notoutsidethebottomleft:			
+		return True
+	else:
+		return False
+	
+  
+    def destroy(self):	
+        # destroy the propagation singleton
         self.propagation.destroy()
         
         # destroy my own instance
         self._instance                      = None
         self._init                          = False
-    
+  	
     #======================== thread ==========================================
     
     def run(self):
         ''' event driven simulator, this thread manages the events '''
-        #print "Initializing parent "+ str(len(self.startCb))
+
         # log
         log.info("thread {0} starting".format(self.name))
-        #print "Simulating nodes: "+str(self.settings.numMotes)
+
         # schedule the endOfSimulation event
         self.scheduleAtAsn(
-            asn         = self.settings.slotframeLength*self.settings.numCyclesPerRun,
+            asn         = self.settings.slotframeLength*self.settings.numCyclesPerRun,	
             cb          = self._actionEndSim,
             uniqueTag   = (None,'_actionEndSim'),
         )
@@ -153,21 +328,18 @@ class SimEngine(threading.Thread):
                 if not self.events:
                     log.info("end of simulation at ASN={0}".format(self.asn))
                     break
-                               
-                #emunicio, to avoid errors when exectuing step by step
-		(a,b,cb,c)=self.events[0]
-                if c[1]!='_actionPauseSim':                 
-                       assert self.events[0][0] >= self.asn
                 
-		# make sure we are in the future
-                assert self.events[0][0] >= self.asn
+                #emunicio, to avoid errors when exectuing step by step with large networks
+		(a,b,cb,c)=self.events[0]
+                if c[1]!='_actionPauseSim':   
+			# make sure we are in the future              
+                       assert self.events[0][0] >= self.asn
 
                 # update the current ASN
                 self.asn = self.events[0][0]
                 
                 # call callbacks at this ASN
-                while True:
-                        
+                while True:                 
                     if self.events[0][0]!=self.asn:
                         break
                     (_,_,cb,_) = self.events.pop(0)
@@ -181,17 +353,79 @@ class SimEngine(threading.Thread):
         log.info("thread {0} ends".format(self.name))
     
     #======================== public ==========================================
-    
-    #emunicio    
+
+    def getAvgVisibleNeighbors(self):
+	''' 
+	Return the average number of visible neighbors
+	'''
+	total=0.0
+	for mote in self.motes:
+		total+=len(mote.numVisibleNeighbors)
+
+	return total/len(self.motes)
+
+    def setNodeHasTxCellsTime(self,mote):
+	''' 
+	set the time for when a mote get his first TX cell
+	'''	
+	self.nodeHasTxCellsTime[mote]=self.asn
+
+    def getMaxNodeHasTxCellsTime(self):
+	''' 
+	Return the time when all motes got a TX cell
+	'''
+	return self.nodeHasTxCellsTime[max(self.nodeHasTxCellsTime, key=self.nodeHasTxCellsTime.get)]
+
+    def setNodeSendingTime(self,mote):	
+	''' 
+	set the time for when a mote start to send
+	'''
+	self.nodeSendingTime[mote]=self.asn
+
+    def getMaxNodeSendingTime(self):
+	''' 
+	Return the time when all motes have started to send
+	'''
+	return self.nodeSendingTime[max(self.nodeSendingTime, key=self.nodeSendingTime.get)]
+
+    def setJoiningTime(self,mote):
+	''' 
+	set the time for when a mote has got a parent
+	'''	
+	self.joiningTime[mote]=self.asn
+
+    def getMaxJoiningTime(self):
+	''' 
+	Return the time when all motes got a parent
+	'''
+	return self.joiningTime[max(self.joiningTime, key=self.joiningTime.get)]
+
     def incrementStatDropByCollision(self):
         self.dropByCollision+=1
      
     def incrementStatDropByPropagation(self):  
         self.dropByPropagation+=1
 
+    def incrementStatTRX(self):  
+        self.TRX+=1
+
+    def incrementStatRDX(self):  
+        self.RDX+=1
 
     #=== scheduling
     
+    def scheduleEndSimAt(self,initcycle,endcycle):
+	''' used set dynamically the end of the simulation '''
+
+	self.experimentInitTime=initcycle
+	self.experimentEndTime=endcycle
+
+	self.scheduleAtAsn(
+            asn         = self.settings.slotframeLength*self.experimentEndTime,	
+            cb          = self._actionEndSim,
+            uniqueTag   = (None,'_actionEndSim'),
+        )
+
     def scheduleAtStart(self,cb):
         with self.dataLock:
             self.startCb    += [cb]
@@ -201,6 +435,7 @@ class SimEngine(threading.Thread):
         
         with self.dataLock:
             asn = int(self.asn+(float(delay)/float(self.settings.slotDuration)))
+
             self.scheduleAtAsn(asn,cb,uniqueTag,priority,exceptCurrentASN)
     
     def scheduleAtAsn(self,asn,cb,uniqueTag=None,priority=0,exceptCurrentASN=True):
@@ -221,7 +456,7 @@ class SimEngine(threading.Thread):
                 i +=1
             
             # add to schedule
-            self.events.insert(i,(asn,priority,cb,uniqueTag))           
+            self.events.insert(i,(asn,priority,cb,uniqueTag))            
     
     def removeEvent(self,uniqueTag,exceptCurrentASN=True):
         with self.dataLock:
@@ -242,7 +477,6 @@ class SimEngine(threading.Thread):
         self._actionResumeSim()
     
     def pauseAtAsn(self,asn):
-        #print "Pausing simulation"
         if not self.simPaused:
             self.scheduleAtAsn(
                 asn         = asn,
@@ -254,7 +488,7 @@ class SimEngine(threading.Thread):
     
     def getAsn(self):
         return self.asn
-        
+       
     #======================== private =========================================
     
     def _actionPauseSim(self):
@@ -270,8 +504,6 @@ class SimEngine(threading.Thread):
     def _actionEndSim(self):
         
         with self.dataLock:
-            self.goOn = False
-            	    
+            self.goOn = False            	    
             for mote in self.motes:
                 mote._log_printEndResults()
-
