@@ -68,9 +68,9 @@ class SimSettings(object):
         
         # file
         if self.cpuID==None:
-            tempname         = 'output.dat'
+            tempname         = 'output.ods'
         else:
-            tempname         = 'output_cpu{0}.dat'.format(self.cpuID)
+            tempname         = 'output_cpu{0}.ods'.format(self.cpuID)
         datafilename         = os.path.join(dirname,tempname)
         
         return datafilename
