@@ -110,7 +110,6 @@ class SimStats(object):
 	if self.settings.mobilityModel=='RPGM':
 	    #start moving when the experiment starts
 	    if self.endScheduled:
-	        if not self.engine.allMotesGrouped():
 		    for m in self.engine.motes:
 			m._updateLocation()
 	
@@ -129,7 +128,7 @@ class SimStats(object):
 
 		
 	#once the nodes have a parent, secuencially trigger sf0
-	if self.engine.getJoinedNodes()>=(self.settings.numMotes-1):
+	if len(self.engine.joiningTime.keys())>=(self.settings.numMotes-1):
 	    if self.engine.turn==1:
 		for m in self.engine.motes:
 			if m.id==1:
@@ -137,8 +136,8 @@ class SimStats(object):
 				m.otfTriggered=True
 				m._otf_schedule_housekeeping(firstOtf=True)	 
 			
-
-	if self.engine.getSendingNodes()==self.settings.numMotes-1:
+	#if all nodes are transmitting, try to start the experiment
+	if len(self.engine.nodeSendingTime.keys())==self.settings.numMotes-1:
 	    if self.engine.checkConvergence():
 		    if not self.endScheduled:	
 			self.endScheduled=True
@@ -151,8 +150,6 @@ class SimStats(object):
 
 			print "Sheduled init experiment at at "+str(initcycle)
 			print "Sheduled end at "+str(endcycle)
-
-
 
 	if not self.endScheduled:
 	    for n in self.engine.motes:
