@@ -118,18 +118,19 @@ class TopologyFrame(Tkinter.Frame):
 
 	if self.settings.mobilityModel=='RPGM':
 		destx=self.engine.destx*240
+		desty=self.engine.desty*240
 
-#	if self.engine.obstacles=='4squares':
-#		self.topology.create_rectangle(240*0.5, 240*0.5, 240*1, 240*1)
-#		self.topology.create_rectangle(240*1.5, 240*1.5, 240*2, 240*2)
-#		self.topology.create_rectangle(240*0.5, 240*1.5, 240*1, 240*2)
-#		self.topology.create_rectangle(240*1.5, 240*0.5, 240*2, 240*1)
+	#	if self.engine.obstacles=='4squares':
+	#		self.topology.create_rectangle(240*0.5, 240*0.5, 240*1, 240*1)
+	#		self.topology.create_rectangle(240*1.5, 240*1.5, 240*2, 240*2)
+	#		self.topology.create_rectangle(240*0.5, 240*1.5, 240*1, 240*2)
+	#		self.topology.create_rectangle(240*1.5, 240*0.5, 240*2, 240*1)
 
-	if self.engine.obstacles=='2rectangles':
-		self.topology.create_rectangle(240*0.0, 240*0.5, 240*1.6, 240*1)
-		self.topology.create_rectangle(240*1, 240*1.5, 240*2.6, 240*2.5)
+		if self.engine.obstacles=='2rectangles':
+			self.topology.create_rectangle(240*0.0, 240*0.5, 240*1.6, 240*1)
+			self.topology.create_rectangle(240*1, 240*1.5, 240*2.6, 240*2.5)
 	
-        endPont = self.topology.create_oval((destx,desty,destx,desty),fill='blue')
+		endPont = self.topology.create_oval((destx,desty,destx,desty),fill='blue')
 
         # go over all motes in the network
         for m in self.engine.motes:
