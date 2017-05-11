@@ -303,7 +303,7 @@ class Propagation(object):
 							nodesRxAtThisCell.remove(self.receivers[i])
 							#collisions in shared cells are not considered for the stats
 				    #only for debug
-                                    else:
+                                    #else:
                                         #mote locked in an interfering signal
 #					if transmission['smac'].schedule[(ts,transmission['channel'])]['dir']!='SHARED':
 #						transmission['smac'].schedule[(ts,transmission['channel'])]['debug_lockInterference'] += [1]
