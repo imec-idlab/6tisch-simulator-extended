@@ -91,17 +91,11 @@ class SimEngine(threading.Thread):
         self.topology                       = Topology.Topology(self.motes)
         self.topology.createTopology()
        
-
-
-
-
+	#dictionaries for init the experiment
 	self.joiningTime={}
 	self.nodeHasTxCellsTime={}
 	self.nodeSendingTime={}
-
-
-	
-        
+	   
         # boot all motes
         for i in range(len(self.motes)):
             self.motes[i].boot()
@@ -113,20 +107,23 @@ class SimEngine(threading.Thread):
         threading.Thread.__init__(self)
         self.name                           = 'SimEngine'
 
-      
-	#emunicio
-
+     	
 	#total TX and RX of data packets
         self.totalTx=0
         self.totalRx=0
 
+	#all messages sent and received: data, 6top and RPL
+	self.TRX=0   	
+        self.RDX=0
 
+	#duration of the experiment
         self.timeElapsedFlow=0        
 
+	#drops in the PHY layer
         self.dropByCollision=0
         self.dropByPropagation=0
 
-
+	#debras stats
         self.deBrasReceived=0
         self.deBrasTransmitted=0
 
@@ -138,34 +135,12 @@ class SimEngine(threading.Thread):
 	self.pkprobeGeneratedToRoot=0  #packet probe generated	
 	self.pkprobeReceivedInRoot=0   #packet probe received
 
-	self.TRX=0   	
-        self.RDX=0
-
-	#optionally show the procedence in hops of the packets  
-	self.packets12hops=0
-        self.packets11hops=0
-	self.packets10hops=0
-	self.packets9hops=0
-	self.packets8hops=0
-	self.packets7hops=0
-	self.packets6hops=0
-        self.packets5hops=0
-	self.packets4hops=0
-	self.packets3hops=0
-	self.packets2hops=0
-	self.packets1hops=0
-        self.packets0hops=0
-
 	#mote object that is the dagroot
 	self.dagRoot=None
 
 	#the saturation has been forced to start due to saturation reached or time limit exceeded
 	self.simulationForced=False
-
-	
-	self.getAllNodesHaveTxCellsAsn=None	#useless
-            
-
+	           
 	#initial values that will be overwritten in SimStats
         self.experimentInitTime=0
         self.experimentEndTime=self.settings.numCyclesPerRun
