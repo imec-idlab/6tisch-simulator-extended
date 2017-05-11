@@ -6,6 +6,7 @@
 \author Kazushi Muraoka <k-muraoka@eecs.berkeley.edu>
 \author Nicola Accettura <nicola.accettura@eecs.berkeley.edu>
 \author Xavier Vilajosana <xvilajosana@eecs.berkeley.edu>
+Added changes for 6tisch-sim-extended: Esteban Municio <esteban.municio@uantwerpen.be>
 '''
 
 #============================ logging =========================================
@@ -31,10 +32,10 @@ from SimEngine import SimEngine, \
 
 class TopologyFrame(Tkinter.Frame):
     
-    UPDATE_PERIOD       = 1000
+    UPDATE_PERIOD       = 100
     MOTE_SIZE           = 10
-    HEIGHT              = 300
-    WIDTH               = 300
+    HEIGHT              = 600
+    WIDTH               = 600
     
     def __init__(self,guiParent):
         
@@ -44,6 +45,7 @@ class TopologyFrame(Tkinter.Frame):
         # variables
         self.motes      = {}
         self.moteIds    = {}
+	self.moteCoords    = {}
         self.links      = {}
         
         # initialize the parent class
@@ -97,8 +99,8 @@ class TopologyFrame(Tkinter.Frame):
         for (k,v) in self.links.items():
             self.topology.itemconfig(v,tags=("deleteMe",))
         
-        #===== draw links
-        
+        #===== draw links       
+
         # go over all links in the network
         for mote in self.engine.motes:
             for (ts,ch,neighbor) in mote.getTxCells():
@@ -108,23 +110,38 @@ class TopologyFrame(Tkinter.Frame):
                     self.topology.itemconfig(newLink,activefill='red')
                     self.topology.tag_bind(newLink, '<ButtonPress-1>', self._linkClicked)
                     self.links[(mote,neighbor)] = newLink
-		    #print "NEW LINK BETWEEN "+str((mote.id,neighbor.id))
                 else:
                     # move
                     self.topology.dtag(self.links[(mote,neighbor)],"deleteMe")
-                    # TODO:move
-        
+
         #===== draw motes and moteIds
-        
+
+	if self.settings.mobilityModel=='RPGM':
+		destx=self.engine.destx*240
+
+#	if self.engine.obstacles=='4squares':
+#		self.topology.create_rectangle(240*0.5, 240*0.5, 240*1, 240*1)
+#		self.topology.create_rectangle(240*1.5, 240*1.5, 240*2, 240*2)
+#		self.topology.create_rectangle(240*0.5, 240*1.5, 240*1, 240*2)
+#		self.topology.create_rectangle(240*1.5, 240*0.5, 240*2, 240*1)
+
+	if self.engine.obstacles=='2rectangles':
+		self.topology.create_rectangle(240*0.0, 240*0.5, 240*1.6, 240*1)
+		self.topology.create_rectangle(240*1, 240*1.5, 240*2.6, 240*2.5)
+	
+        endPont = self.topology.create_oval((destx,desty,destx,desty),fill='blue')
+
         # go over all motes in the network
         for m in self.engine.motes:
+
             if m not in self.motes:
-                # create
+                # create		
                 newMote = self.topology.create_oval(self._moteCoordinates(m),fill='blue')
+
                 self.topology.itemconfig(newMote,activefill='red')
                 self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
                 self.motes[m] = newMote
-                
+                self.moteCoords[m.id]=[m.x,m.y]
                 newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
                 self.topology.itemconfig(newMoteId,text=m.id)
                 self.moteIds[m] = newMoteId
@@ -132,8 +149,80 @@ class TopologyFrame(Tkinter.Frame):
                 # move
                 self.topology.dtag(self.motes[m],"deleteMe")
                 self.topology.dtag(self.moteIds[m],"deleteMe")
-                # TODO: move
-        
+
+	
+
+	for m in self.engine.motes:
+
+	    if m.preferredParent!=None:
+		if len(m.getTxCells())>0:
+			self.topology.delete(self.motes[m])
+			self.topology.delete(self.moteIds[m])
+			newMote = self.topology.create_oval(self._moteCoordinates(m),fill='black')
+		        self.topology.itemconfig(newMote,activefill='red')
+		        self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
+		        self.motes[m] = newMote
+		        newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
+		        self.topology.itemconfig(newMoteId,text=m.id)
+		        self.moteIds[m] = newMoteId
+		else:
+			
+			self.topology.delete(self.motes[m])
+			self.topology.delete(self.moteIds[m])
+			newMote = self.topology.create_oval(self._moteCoordinates(m),fill='blue')
+		        self.topology.itemconfig(newMote,activefill='red')
+		        self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
+		        self.motes[m] = newMote
+		        newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
+		        self.topology.itemconfig(newMoteId,text=m.id)
+		        self.moteIds[m] = newMoteId
+
+	    else:
+		if m.id==0:
+			self.topology.delete(self.motes[m])
+			self.topology.delete(self.moteIds[m])
+			newMote = self.topology.create_oval(self._moteCoordinates(m),fill='orange')
+		        self.topology.itemconfig(newMote,activefill='red')
+		        self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
+		        self.motes[m] = newMote
+		        newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
+		        self.topology.itemconfig(newMoteId,text=m.id)
+		        self.moteIds[m] = newMoteId
+		else:
+			self.topology.delete(self.motes[m])
+			self.topology.delete(self.moteIds[m])
+			newMote = self.topology.create_oval(self._moteCoordinates(m),fill='grey')
+		        self.topology.itemconfig(newMote,activefill='red')
+		        self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
+		        self.motes[m] = newMote
+		        newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
+		        self.topology.itemconfig(newMoteId,text=m.id)
+		        self.moteIds[m] = newMoteId
+
+
+	for m in self.engine.motes:
+		if [m.x,m.y]!=self.moteCoords[m.id]:
+			#deleting
+			
+			for (ts,ch,neighbor) in m.getTxCells():
+				if (m,neighbor) in self.links:
+					
+					self.topology.delete(self.links[(m,neighbor)])
+					del self.links[(m,neighbor)]
+			del self.moteCoords[m.id]
+
+			self.topology.delete(self.motes[m])
+			self.topology.delete(self.moteIds[m])
+
+			newMote = self.topology.create_oval(self._moteCoordinates(m),fill='blue')
+		        self.topology.itemconfig(newMote,activefill='red')
+		        self.topology.tag_bind(newMote, '<ButtonPress-1>', self._moteClicked)
+		        self.motes[m] = newMote
+		        self.moteCoords[m.id]=[m.x,m.y]
+		        newMoteId = self.topology.create_text(self._moteIdCoordinates(m))
+		        self.topology.itemconfig(newMoteId,text=m.id)
+		        self.moteIds[m] = newMoteId
+	        
         #===== remove all elements still marked
         
         for elem in self.topology.find_withtag("deleteMe"):

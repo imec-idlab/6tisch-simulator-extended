@@ -6,10 +6,7 @@
 \author Kazushi Muraoka <k-muraoka@eecs.berkeley.edu>
 \author Nicola Accettura <nicola.accettura@eecs.berkeley.edu>
 \author Xavier Vilajosana <xvilajosana@eecs.berkeley.edu>
-'''
-
-'''
-added changes by Esteban Municio <esteban.municio@uantwerpen.be>
+Added changes for 6tisch-sim-extended: Esteban Municio <esteban.municio@uantwerpen.be>
 '''
 
 #============================ logging =========================================
@@ -46,6 +43,7 @@ class ScheduleFrame(Tkinter.Frame):
     COLOR_TX                 = "green"
     COLOR_RX                 = "magenta"
     COLOR_SHARED             = "yellow"
+    COLOR_DEBRAS             = "orange"
     
     def __init__(self,guiParent):
         
@@ -113,11 +111,9 @@ class ScheduleFrame(Tkinter.Frame):
             for c in ts:
                 self.schedule.itemconfig(c, fill='', outline='black', width=1.0)
         
-        # color according to usage
-	
+        # color according to usage	
         for m in self.engine.motes:
             for (ts,ch,neighbor) in m.getTxCells():
-
 
 		color = self.schedule.itemcget(self.cells[ts][ch], "fill")
 		if not color:		
@@ -128,14 +124,19 @@ class ScheduleFrame(Tkinter.Frame):
 		    	if n.id!=m.id: 
 			     for (ts1,ch1,neigh1) in n.getTxCells():
 				  if ts==ts1 and ch==ch1:
+
 					if (n.getRSSI(neighbor)+(-97-(-105))) >= neighbor.minRssi:
 						self.schedule.itemconfig(self.cells[ts][ch], fill=self.COLOR_ERROR)
+                    				
 					else:
 						self.schedule.itemconfig(self.cells[ts][ch], fill=self.COLOR_NOREALCOLLISION)
 
         for (ts,ch,_) in m.getSharedCells():
             self.schedule.itemconfig(self.cells[ts][ch], fill=self.COLOR_SHARED)
 
+        for (ts,ch,_) in m.getDeBrasSharedCells():
+            self.schedule.itemconfig(self.cells[ts][ch], fill=self.COLOR_DEBRAS)
+	
         # color selected mote's cells
         mote = self.guiParent.selectedMote
         if mote:
