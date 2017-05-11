@@ -3554,6 +3554,10 @@ class Mote(object):
         if not self.settings.sixtopNoHousekeeping:
             self._sixtop_schedule_housekeeping()
 
+	#always pause at the begining by default
+	firstpause=self.engine.asn+1
+        self.engine.pauseAtAsn(firstpause)
+
 	#tsch
 
 	# set initial SHARED cells
@@ -3835,30 +3839,30 @@ class Mote(object):
                 ts_b=0
 		for n in range(0,self.settings.numSHAREDCells):
                     cell = (ts_b,j_ch)
-		    if sharedCell_id < self.settings.numMotes:
-			    self.schedule[(ts_b,j_ch)] = {
-		                'ts':                        ts_b,
-		                'ch':                        j_ch,
-		                'dir':                       self.DIR_SHARED,
-		                'neighbor':                  None,	#no neighbor predefined since is shared cell
-				'isDebras':		     False,
-				'debrasFreshness':           0,
-		                'numTx':                     0,
-		                'numTxAck':                  0,
-		                'sharedCell_id':             sharedCell_id,
-		                'numRx':                     0,
-		                'busy':                      0,
-		                'history':                   [],
-		                'waitingfor':                None,
-		                'rxDetectedCollision':       False,
-		                'debug_canbeInterfered':     [],                      # [debug] shows schedule collision that can be interfered with minRssi or larger level 
-		                'debug_interference':        [],                      # [debug] shows an interference packet with minRssi or larger level 
-		                'debug_lockInterference':    [],                      # [debug] shows locking on the interference packet
-		                'debug_cellCreatedAsn':      self.engine.getAsn(),    # [debug]
-		            }
 
-			    ts_b+=int(self.settings.slotframeLength/self.settings.numSHAREDCells)
-			    sharedCell_id+=1
+		    self.schedule[(ts_b,j_ch)] = {
+	                'ts':                        ts_b,
+	                'ch':                        j_ch,
+	                'dir':                       self.DIR_SHARED,
+	                'neighbor':                  None,	#no neighbor predefined since is shared cell
+			'isDebras':		     False,
+			'debrasFreshness':           0,
+	                'numTx':                     0,
+	                'numTxAck':                  0,
+	                'sharedCell_id':             sharedCell_id,
+	                'numRx':                     0,
+	                'busy':                      0,
+	                'history':                   [],
+	                'waitingfor':                None,
+	                'rxDetectedCollision':       False,
+	                'debug_canbeInterfered':     [],                      # [debug] shows schedule collision that can be interfered with minRssi or larger level 
+	                'debug_interference':        [],                      # [debug] shows an interference packet with minRssi or larger level 
+	                'debug_lockInterference':    [],                      # [debug] shows locking on the interference packet
+	                'debug_cellCreatedAsn':      self.engine.getAsn(),    # [debug]
+	            }
+
+		    ts_b+=int(self.settings.slotframeLength/self.settings.numSHAREDCells)
+		    sharedCell_id+=1
                 if j_ch>=(self.settings.numRadios-1):	#only set shared cells in the same ts up the num radios available
 			break
 
