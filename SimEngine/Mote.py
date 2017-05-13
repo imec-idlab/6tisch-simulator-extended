@@ -108,9 +108,7 @@ class Mote(object):
     CHARGE_RxData_uC                   = 64.65
     
     def __init__(self,id):
-        
-     
-    
+         
         # store params
         self.id                        = id
         # local variables
@@ -1177,7 +1175,7 @@ class Mote(object):
 		    tsList+=[(ts,ch)]
 
                 # relocate: remove the cell, in SF0 will add it in the future
-                if self.sixtopState==self.IDLE and self.rplParentChangeOperationInCourse==False:
+                if self.sixtopState==self.IDLE and self.rplParentChangeOperationInCourse==False and len(tsList)>0:
             	    self._sixtop_removeCells_request_action(neighbor,len(tsList),tsList)
 
                     # update stats
