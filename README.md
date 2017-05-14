@@ -1,5 +1,6 @@
 # 6tisch-simulator-extended
 ====================
+
 Contains new features for the python 6tisch-simulator 
 
 Added changes by Esteban Municio <esteban.municio@uantwerpen.be>
@@ -22,8 +23,10 @@ The following changes have been included:
 	* P-centralized: A centralized scheduler that has total knowledge of the network has been included.
 * traffic model
 	* Pareto variable traffic for Hurst H=0.6 and average pkPeriod
+
 Running
 -------
+
 * Run a simulation:
 `python runSimAllCPUs.py $nodes $scheduler $numDeBraS $rpl $sf0 $sixtop $topo $maxnumhops $squareSide $mobility $numRadios $trafficType`
 
