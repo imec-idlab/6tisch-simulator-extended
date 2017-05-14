@@ -142,7 +142,7 @@ class SimEngine(threading.Thread):
 	self.simulationForced=False
 	           
 	#initial values that will be overwritten in SimStats
-        self.experimentInitTime=0
+        self.experimentInitTime=10000
         self.experimentEndTime=self.settings.numCyclesPerRun
 
 	#specifies the turn for a tidy joining process	
