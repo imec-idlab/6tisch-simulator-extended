@@ -34,17 +34,17 @@ Running
 | Parameter                                                |                                                            |
 |----------------------------------------------------------|------------------------------------------------------------|
 |`$nodes`        					   |    Number of nodes                      			|
-|`$scheduler = opt2 | none | deBras`     		   |    Where opt2: P-centralized, none: sf0, deBras: DeBraS    |
+|`$scheduler = opt2,none,deBras`     		  	   |    Where opt2: P-centralized, none: sf0, deBras: DeBraS    |
 |`$numDeBraS`      					   |    Number of DeBraS cells per channel 			|
 |`$rpl`            					   |    RPL DIO period                              		|
 |`$sf0`							   |	SF0 HouseKeeping Period					|
 |`$sixtop`						   |	6Top HouseKeeping Period				|
-|`$topo = star | mesh | mesh-struct`			   |	Topology: Star topology, random mesh, strcutured mesh	|
+|`$topo = star,mesh,mesh-struct`			   |	Topology: Star topology, random mesh, strcutured mesh	|
 |`$maxnumhops`						   |	Max number of hops expected in the network		|
 |`$squareSide`			 			   |	For n hops: `squareSide = $maxnumhops*0.5`		|
-|`$mobility = static | staticUNI | staticRay | RWM | RPGM` |	Mobility models						|
+|`$mobility = static,staticUNI,staticRay,RWM,RPGM` 	   |	Mobility models						|
 |`$numRadios` 						   |	Number of simulatenous TX/RX at every node		|
-|`$trafficType = constant | paretovariable` 	           |    Traffic pattern						|
+|`$trafficType = constant,paretovariable` 	           |    Traffic pattern						|
 
 The 6TiSCH Simulator
 ====================
