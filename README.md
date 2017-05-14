@@ -1,7 +1,45 @@
 # 6tisch-simulator-extended
+====================
 Contains new features for the python 6tisch-simulator 
 
-added changes by Esteban Municio <esteban.municio@uantwerpen.be>
+Added changes by Esteban Municio <esteban.municio@uantwerpen.be>
+
+The following changes have been included:
+* protocols
+	* 6P: A realistic 6Top Protocol is implemented. Messages are sent in both SHARED and TX cells. 
+	  Using states and codes from http://tools.ietf.org/html/draft-wang-6tisch-6top-sublayer
+	* RPL: A realistic RPL is implemented. RPL DIOs messages are sent in SHARED cells. A simple Trickle alogirthm is used
+* phy layer
+	* Rayleigh model has been added (Friis + Rayleigh) for NLOS scenarios
+	* Variable RSSI at every cycle. 
+	* Multichannel capailities. It's possible to specify the number of simultaneous TX/RX allowed in the nodes (i.e., number of radios)
+* mobility
+	* RWM: Random Walk Model. Nodes move randomly
+	* RPGM: Reference Point Group Mobility with obstacles. Nodes move in gorup and avoid obstacles by a Virtual Force Field
+	* Structured mesh. A mesh network can be built with a specific hop average
+* scheduler
+	* DeBraS: Aloha and TDMA DeBraS. Different number of DeBraS cells can be specified. A more realistic implementation is included by adding 		  max payload and "Fresheness" to DeBraS
+	* P-centralized: A centralized scheduler that has total knowledge of the network has been included.
+* traffic model
+	* Pareto variable traffic for Hurst H=0.6 and average pkPeriod
+Running
+-------
+* Run a simulation:
+`python runSimAllCPUs.py $nodes $scheduler $numDeBraS $rpl $sf0 $sixtop $topo $maxnumhops $squareSide $mobility $numRadios $trafficType`
+
+$nodes = 							Number of nodes
+$scheduler = opt2 | none | deBras				Where opt2: P-centralized, none: sf0, deBras: DeBraS
+$numDeBraS = 							Number of DeBraS cells per channel
+$rpl = 								RPL DIO period
+$sf0 = 								SF0 HouseKeeping Period
+$sixtop = 							6Top HouseKeeping Period
+$topo = star | mesh | mesh-struct				Topology: Star topology, random mesh, strcutured mesh
+$maxnumhops = 							Max number of hops expected in the network
+$squareSide = 			 				For n hops: squareSide = $maxnumhops*0.5
+$mobility = static | staticUNI | staticRay | RWM | RPGM 	Mobility models
+$numRadios = 							Number of simulatenous TX/RX at every node
+$trafficType = constant | paretovariable 			Traffic pattern
+
 
 The 6TiSCH Simulator
 ====================
