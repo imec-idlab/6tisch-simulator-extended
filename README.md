@@ -43,7 +43,7 @@ Running
 |`$maxnumhops`						   |	Max number of hops expected in the network		|
 |`$squareSide`			 			   |	For n hops: `squareSide = $maxnumhops*0.5`		|
 |`$mobility = static,staticUNI,staticRay,RWM,RPGM` 	   |	Mobility models						|
-|`$numRadios` 						   |	Number of simulatenous TX/RX at every node		|
+|`$numRadios` 						   |	Number of simultaenous TX/RX at every node		|
 |`$trafficType = constant,paretovariable` 	           |    Traffic pattern						|
 
 The 6TiSCH Simulator
