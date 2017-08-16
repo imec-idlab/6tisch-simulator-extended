@@ -1324,6 +1324,114 @@ class Mote(object):
 		if not isEnqueued:
 		    self._stats_incrementMoteStats('zixtopFailEnqueue')
 		    assert False	#usually the Shared queue is never full since RPL and 6top packages are enqueued smartly	
+
+	    elif self.settings.scheduler=='llsf':
+                    cellsListNoDir = None
+	            numCellsExtra = numCells + 10 # backup cells, send them with the request to make sure you have some free cells
+		    scheduleTimeslots = [ts for (ts, ch) in self.schedule]
+                    availableTimeslots = sorted(list(set(range(self.settings.slotframeLength))-set(scheduleTimeslots)))
+                    # the current timeslots you have of RX neighbors
+                    rxNeighborsTimeslots = OrderedDict()
+                    # the timeslot after the largest gap of reception timeslots for RX neighbors
+                    rxNeighborsLargestGapTimeslot = OrderedDict()
+
+                    # 1) look for all reception timeslots
+                    if neighbor == self.preferredParent:
+                        for (ts, ch), cell in self.schedule.iteritems():
+                            if cell['dir'] == self.DIR_RX:
+                                if cell['neighbor'] in rxNeighborsTimeslots:
+                                    rxNeighborsTimeslots[cell['neighbor']].append(ts)
+                                else:
+                                    rxNeighborsTimeslots[cell['neighbor']] = [ts]
+
+                    # 2) look for largest gap
+                    for rxNeighbor, tsList in rxNeighborsTimeslots.iteritems():
+                        rxNeighborsLargestGapTimeslot[rxNeighbor] = self.lookForLargestGapReceptionTimeslot(sorted(tsList))
+
+                    # 3) distribute the cells in a random manner
+                    rxNbs = rxNeighborsTimeslots.keys()
+                    handledrxNbs = []
+                    cellsToHandout = numCellsExtra
+                    reservationTimeslots = OrderedDict()
+                    # keep doing this until all cells are handed out
+                    # AND only do this when there are receiving neighbors
+                    while cellsToHandout > 0 and len(rxNeighborsTimeslots.keys()) > 0:
+                        # reset if we went through the entire list of neighbors
+                        if len(rxNbs) == 0:
+                            rxNbs = [rxNb for rxNb in handledrxNbs]
+                            handledrxNbs = []
+                        # find random neighbor
+                        index = random.randint(0, len(rxNbs)-1)
+                        if rxNbs[index] not in reservationTimeslots:
+                            reservationTimeslots[rxNbs[index]] = 0
+                        reservationTimeslots[rxNbs[index]] += 1 # give this neighbor a cell
+                        # move neighbor
+                        handledrxNbs.append(rxNbs[index])
+                        rxNbs.remove(rxNbs[index])
+                        # decrement the number of cells to hand out
+                        cellsToHandout -= 1
+
+                    # 4) now finally search for the actual cells for each neighbor
+                    for rxNeighbor, timeslotsToReserve in reservationTimeslots.iteritems():
+                        nextToGapTimeslot = rxNeighborsLargestGapTimeslot[rxNeighbor] + 1 # + 1, b/c the cell next to the gap
+                        channel = random.randint(0,self.settings.numChans-1)
+                        while timeslotsToReserve > 0:
+                            # find an available timeslot
+                            availableTimeslot = self.getAvailableTimeslot(nextToGapTimeslot, availableTimeslots, cellsListNoDir)
+                            # if None, no availability was found
+                            if availableTimeslot:
+                                if cellsListNoDir == None:
+                                    cellsListNoDir = []
+                                cellsListNoDir.append((availableTimeslot, channel))
+                            # decrement the number of cells to reserve for this rx neighbor
+                            timeslotsToReserve -= 1
+
+                    # 5) if no or not enough cells got reserved by LLSF's way, reserve them here randomly
+                    if cellsListNoDir is None or len(cellsListNoDir) < numCellsExtra:
+                        toReserveRandomly = numCellsExtra
+                        if cellsListNoDir is not None: # if we did manage to reserve some cells already
+                            toReserveRandomly = numCellsExtra - len(cellsListNoDir)
+                        while toReserveRandomly > 0:
+                            allTSs = range(0, self.settings.slotframeLength)
+                            random.shuffle(allTSs)
+                            # availableTimeslot = self.getAvailableTimeslot(random.randint(0, self.settings.slotframeLength-1), availableTimeslots, None)
+                            availableTimeslot = None
+                            while availableTimeslot is None and len(allTSs) > 0:
+                                # you have to pass cellListNoDir, because in a second iteration of the available cells could be reserved in the previous iteration
+                                randomTS = allTSs.pop()
+                                availableTimeslot = self.getAvailableTimeslot(randomTS, availableTimeslots, cellsListNoDir)
+                                channel = random.randint(0,self.settings.numChans-1)
+                                if availableTimeslot is not None:
+                                    if cellsListNoDir == None:
+                                        cellsListNoDir = []
+                                    cellsListNoDir.append((availableTimeslot, channel))
+                            toReserveRandomly -= 1 # we tried one more randomly
+
+		    self.sixtopState=self.SIX_STATE_SENDING_REQUEST
+		    trafficType=self.SIXTOP_CMD_TRAFFIC	
+		    sixtopcmd=self.IANA_6TOP_CMD_ADD
+		    newPacket = {
+			'source':	  self,
+			'dest':		  neighbor,
+			'asn':            self.engine.getAsn(),
+			'type':           trafficType,
+			'payload':        [self.id,self.engine.getAsn(),sixtopcmd,0,numCells,direction,cellsListNoDir,self.settings.scheduler, neighbor], #randomly chosen
+			'retriesLeft':    self.TSCH_MAXTXRETRIES
+		     }# the payload is the id, the asn, the command, the auxiliar command, the number of cells and the direction, the candidate list in the sender the scheduler and the neighbor, usally the preferred parent
+
+		    assert self.cellsPendingOperation==None
+		    assert self.cellsPendingOperationType==None
+		    assert self.cellsPendingOperationNeigh==None
+		    self.cellsPendingOperation=cellsListNoDir
+		    self.cellsPendingOperationType=direction
+		    self.cellsPendingOperationNeigh=neighbor
+
+		    isEnqueued = self._tsch_enqueue(newPacket,neighbor)
+
+		    if not isEnqueued:
+		        print "I am "+str(self.id)+" Fail enqueing ADD CMD"
+		        self._stats_incrementMoteStats('zixtopFailEnqueue')
+		        assert False
 		
 	    elif self.settings.scheduler=='cen':	#p-centralized without overlapping when saturation
 		print "Not implemented yet"
@@ -1909,7 +2017,34 @@ class Mote(object):
 			    	    #0 cells available, enqueue packet with Error code
 			    	    self._sixtop_enqueueCMD_ADD_Response(neighbor,direction,selectedCells,err=True)
 
+		    elif self.settings.scheduler=='llsf':
+			# make a list of all the timeslots that are blocked for other other operations
+			# gdaneels, NOTE: this can stay slotframelength because 6P only does reservations in normal slotframes
+			scheduleTimeslots = [ts for (ts, ch) in self.schedule]
+			availableTimeslots = list(set(range(self.settings.slotframeLength)) - set(scheduleTimeslots))
 
+			availableTimeslots    = sorted(availableTimeslots)
+			
+			nIndex = 0
+			cellList = []
+			newCells = {}
+			for cell in payload[6]:
+			    ts = cell[0] # timeslot is the first element
+			    ch = cell[1] # channel is the second element
+			    if ts in availableTimeslots:
+				cellList += [(ts,ch,dir)]
+				newCells[nIndex] = (ts,ch)
+				nIndex += 1
+				if len(newCells) == numCells:
+				    break # only reserve so many cells as requested, there are always more given
+
+			#enqueue response with an error
+		        if numCells!=len(newCells):
+				self._sixtop_enqueueCMD_ADD_Response(neighbor,direction,newCells,err=True)
+
+		        else:
+		    		#instead of add cells, enqueue packet with RC_SUCCESS
+		    		self._sixtop_enqueueCMD_ADD_Response(neighbor,direction,newCells,err=False)
 
 		    elif self.settings.scheduler=='deBras':
 
