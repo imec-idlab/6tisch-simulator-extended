@@ -31,20 +31,20 @@ Running
 * Run a simulation:
 `python runSimAllCPUs.py $nodes $scheduler $numDeBraS $rpl $sf0 $sixtop $topo $maxnumhops $squareSide $mobility $numRadios $trafficType`
 
-| Parameter                                                |                                                            |
-|----------------------------------------------------------|------------------------------------------------------------|
-|`$nodes`        					   |    Number of nodes                      			|
-|`$scheduler = opt2,none,deBras`     		  	   |    Where opt2: P-centralized, none: sf0, deBras: DeBraS    |
-|`$numDeBraS`      					   |    Number of DeBraS cells per channel 			|
-|`$rpl`            					   |    RPL DIO period                              		|
-|`$sf0`							   |	SF0 HouseKeeping Period					|
-|`$sixtop`						   |	6Top HouseKeeping Period				|
-|`$topo = star,mesh,mesh-struct`			   |	Topology: Star topology, random mesh, strcutured mesh	|
-|`$maxnumhops`						   |	Max number of hops expected in the network		|
-|`$squareSide`			 			   |	For n hops: `squareSide = $maxnumhops*0.5`		|
-|`$mobility = static,staticUNI,staticRay,RWM,RPGM` 	   |	Mobility models						|
-|`$numRadios` 						   |	Number of simultaenous TX/RX at every node		|
-|`$trafficType = constant,paretovariable` 	           |    Traffic pattern						|
+| Parameter                                                |                                                            	|
+|----------------------------------------------------------|--------------------------------------------------------------------|
+|`$nodes`        					   |    Number of nodes                      				|
+|`$scheduler = opt2,none,deBras,llsf`     		   |    Where opt2: P-centralized, none: sf0, deBras: DeBraS, llsf: LLSF|
+|`$numDeBraS`      					   |    Number of DeBraS cells per channel 				|
+|`$rpl`            					   |    RPL DIO period                              			|
+|`$sf0`							   |	SF0 HouseKeeping Period						|
+|`$sixtop`						   |	6Top HouseKeeping Period					|
+|`$topo = star,mesh,mesh-struct`			   |	Topology: Star topology, random mesh, strcutured mesh		|
+|`$maxnumhops`						   |	Max number of hops expected in the network			|
+|`$squareSide`			 			   |	For n hops: `squareSide = $maxnumhops*0.5`			|
+|`$mobility = static,staticUNI,staticRay,RWM,RPGM` 	   |	Mobility models							|
+|`$numRadios` 						   |	Number of simultaenous TX/RX at every node			|
+|`$trafficType = constant,paretovariable` 	           |    Traffic pattern							|
 
 The 6TiSCH Simulator
 ====================
